@@ -1,0 +1,217 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// Копия юзеров из микросервиса
+model User {
+  userId     String  @id @default(uuid()) @map("user_id") @db.VarChar(36)
+  userName   String? @map("user_name") @db.VarChar(128)
+  userAvatar String? @map("user_avatar") @db.VarChar(128)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Int      @default(0) @map("is_deleted") @db.TinyInt()
+
+  chats     ChatUser[] @relation("UserChats")
+  messages  Message[]  @relation("UserMessages")
+  claims    Claim[]    @relation("UserClaims")
+  claimed   Claim[]    @relation("UserPenalties")
+  reactions Reaction[] @relation("UserReactions")
+
+  @@map("chat_users")
+}
+
+// Комнаты чата
+model ChatRoom {
+  roomId Int     @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  title  String? @map("title") @db.VarChar(128)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Int      @default(0) @map("is_deleted") @db.TinyInt()
+
+  chats Chat[] @relation("RoomChats")
+
+  @@map("chat_chat_rooms")
+}
+
+// Чаты
+model Chat {
+  chatId Int          @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  roomId Int          @map("room_id") @db.UnsignedInt()
+  title  String?      @map("title") @db.VarChar(128)
+  status EChatStatus? @default(ACTIVE) @map("status")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Int      @default(0) @map("is_deleted") @db.TinyInt()
+
+  room ChatRoom? @relation("RoomChats", fields: [roomId], references: [roomId], onDelete: Cascade)
+
+  messages Message[]  @relation("ChatMessages")
+  claims   Claim[]    @relation("ChatClaims")
+  users    ChatUser[] @relation("ChatUsers")
+
+  @@map("chat_chats")
+}
+
+// Пользователи чата
+model ChatUser {
+  chatId Int    @map("chat_id") @db.UnsignedInt()
+  userId String @map("user_id") @db.VarChar(36)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  chat Chat @relation("ChatUsers", fields: [chatId], references: [chatId], onDelete: Cascade)
+  user User @relation("UserChats", fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([chatId, userId])
+  @@map("chat_chat_users")
+}
+
+// Сообщения чата
+model Message {
+  messageId Int             @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  replyToId Int?            @map("reply_to") @db.UnsignedInt()
+  chatId    Int             @map("chat_id") @db.UnsignedInt()
+  userId    String          @map("user_id") @db.VarChar(36)
+  content   String?         @map("content") @db.Text()
+  isRead    Int             @default(0) @map("is_readed") @db.TinyInt()
+  status    EMessageStatus? @default(ACTIVE) @map("status")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Int      @default(0) @map("is_deleted") @db.TinyInt()
+
+  chat    Chat?    @relation("ChatMessages", fields: [chatId], references: [chatId], onDelete: Cascade)
+  user    User?    @relation("UserMessages", fields: [userId], references: [userId], onDelete: Cascade)
+  replyTo Message? @relation("MessageReplies", fields: [replyToId], references: [messageId], onDelete: Cascade)
+
+  replies     Message[]           @relation("MessageReplies")
+  history     MessageVersion[]    @relation("MessageHistory")
+  attachments MessageAttachment[] @relation("MessageAttachments")
+  reactions   Reaction[]          @relation("MessageReactions")
+
+  @@map("chat_messages")
+}
+
+// Версии сообщений чата
+model MessageVersion {
+  versionId Int    @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  messageId Int    @map("message_id") @db.UnsignedInt()
+  content   String @map("content") @db.Text()
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  message Message @relation("MessageHistory", fields: [messageId], references: [messageId], onDelete: Cascade)
+
+  @@map("chat_message_versions")
+}
+
+// Вложения
+model Attachment {
+  attachmentId Int                @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  url          String             @map("url") @db.VarChar(128)
+  name         String             @map("name") @db.VarChar(128)
+  size         Int                @map("size") @db.UnsignedInt()
+  key          String             @map("key") @db.VarChar(128)
+  bucket       String             @map("bucket") @db.VarChar(128)
+  type         String             @map("type") @db.VarChar(128)
+  status       EAttachmentStatus? @default(ACTIVE) @map("status")
+
+  fetchedAt DateTime @default(now()) @map("fetched_at") @db.DateTime(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+
+  messages MessageAttachment[] @relation("AttachmentMessages")
+
+  @@map("chat_attachments")
+}
+
+// Вложения сообщений
+model MessageAttachment {
+  messageId    Int @map("message_id") @db.UnsignedInt()
+  attachmentId Int @map("attachment_id") @db.UnsignedInt()
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  message    Message    @relation("MessageAttachments", fields: [messageId], references: [messageId], onDelete: Cascade)
+  attachment Attachment @relation("AttachmentMessages", fields: [attachmentId], references: [attachmentId], onDelete: Cascade)
+
+  @@id([messageId, attachmentId])
+  @@map("chat_message_attachments")
+}
+
+// Жалобы
+model Claim {
+  claimId  Int           @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  chatId   Int           @map("chat_id") @db.UnsignedInt()
+  userId   String        @map("user_id") @db.VarChar(36)
+  authorId String        @map("author_id") @db.VarChar(36)
+  title    String        @map("title") @db.VarChar(128)
+  body     String        @map("body") @db.Text()
+  status   EClaimStatus? @default(ACTIVE) @map("status")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Int      @default(0) @map("is_deleted") @db.TinyInt()
+
+  chat   Chat? @relation("ChatClaims", fields: [chatId], references: [chatId], onDelete: Cascade)
+  user   User? @relation("UserPenalties", fields: [userId], references: [userId], onDelete: Cascade)
+  author User? @relation("UserClaims", fields: [authorId], references: [userId], onDelete: Cascade)
+
+  @@map("chat_claims")
+}
+
+// Реакции
+model Reaction {
+  reactionId Int    @id @default(autoincrement()) @map("id") @db.UnsignedInt()
+  messageId  Int    @map("message_id") @db.UnsignedInt()
+  userId     String @map("user_id") @db.VarChar(36)
+  content    String @map("content") @db.VarChar(128)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Int      @default(0) @map("is_deleted") @db.TinyInt()
+
+  message Message? @relation("MessageReactions", fields: [messageId], references: [messageId], onDelete: Cascade)
+  user    User?    @relation("UserReactions", fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@map("chat_reactions")
+}
+
+// Перечисления
+enum EChatStatus {
+  ACTIVE  @map("active")
+  BLOCKED @map("blocked")
+
+  @@map("chat_chat_status_enum")
+}
+
+enum EMessageStatus {
+  ACTIVE  @map("active")
+  BLOCKED @map("blocked")
+
+  @@map("chat_message_status_enum")
+}
+
+enum EAttachmentStatus {
+  ACTIVE  @map("active")
+  BLOCKED @map("blocked")
+
+  @@map("chat_attachment_status_enum")
+}
+
+enum EClaimStatus {
+  ACTIVE    @map("active")
+  REJECTED  @map("rejected")
+  COMPLETED @map("completed")
+
+  @@map("chat_claim_status_enum")
+}

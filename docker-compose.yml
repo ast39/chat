@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+
+  mysql:
+    image: mysql:8.0
+#    platform: linux/amd64
+    env_file:
+      - ./.env
+    container_name: ${MYSQL_CONTAINER}
+    environment:
+      MYSQL_HOST: ${DB_HOST}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+    ports:
+      - "${DB_PORT}:${DB_PORT}"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: always
+    networks:
+      - vz_chat_network
+
+  api:
+    container_name: ${API_CONTAINER}
+    build:
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    environment:
+      - TZ=Europe/Moscow
+    env_file:
+      - ./.env
+    depends_on:
+      - mysql
+    networks:
+      - vz_chat_network
+
+volumes:
+  mysql_data: { }
+
+networks:
+  vz_chat_network:

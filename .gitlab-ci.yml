@@ -1,0 +1,3 @@
+include:
+  - project: 'bodymap/ci-template'
+    file: '.gitlab-ci-build-node.yml'
